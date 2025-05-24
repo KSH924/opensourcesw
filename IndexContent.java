@@ -114,7 +114,7 @@ class IndexContentPanel extends JPanel {
         imageButton = createStyledButton("이미지", BABY_PINK);
         nextPage = createStyledButton("다음", BABY_PINK);
         prevPage = createStyledButton("이전", BABY_PINK);
-        addPage = createStyledButton("페이지", LIGHT_BROWN);
+        addPage = createStyledButton("페이지 추가", LIGHT_BROWN);
         deletePage = createStyledButton("삭제", new Color(255, 160, 160));
         backButton = createStyledButton("목록", BROWN);
         hideButton = createStyledButton("가리기", DARK_PINK);
@@ -314,7 +314,7 @@ class IndexContentPanel extends JPanel {
                     imageLabel.setText("");
                     dataManager.updatePageImage(currentIndex, currentPage, file.getAbsolutePath());
                 } catch (Exception ex) {
-                    JOptionPane.showMessageDialog(this, "이미지를 불러올 수 없습니다.ㅇㅁㅇ;;;", "오류", JOptionPane.ERROR_MESSAGE);
+                    JOptionPane.showMessageDialog(this, "이미지를 불러올 수 없습니다.ㅇㅁㅇ;;", "오류", JOptionPane.ERROR_MESSAGE);
                 }
             }
         });
@@ -328,13 +328,13 @@ class IndexContentPanel extends JPanel {
 
         deletePage.addActionListener(e -> {
             if (dataManager.getPages(currentIndex).size() <= 1) {
-                JOptionPane.showMessageDialog(this, "최소 한 페이지는 있어야 합니다... ㄱ-;;",
+                JOptionPane.showMessageDialog(this, "최소 한 페이지는 있어야 합니다.（〜^∇^)〜;",
                         "알림", JOptionPane.INFORMATION_MESSAGE);
                 return;
             }
 
             int result = JOptionPane.showConfirmDialog(this,
-                    "정말 이 페이지를 삭제하시겠습니까? ",
+                    "정말 이 페이지를 삭제하시겠습니까?(づ-̩̩̩-̩̩̩_-̩̩̩-̩̩̩)づ ",
                     "페이지 삭제", JOptionPane.YES_NO_OPTION);
 
             if (result == JOptionPane.YES_OPTION) {
@@ -405,7 +405,7 @@ class IndexContentPanel extends JPanel {
             }
         } else {
             imageLabel.setIcon(null);
-            imageLabel.setText("이미지 추가!");
+            imageLabel.setText("이미지 추가!(-ω- )");
         }
     }
 
