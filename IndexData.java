@@ -57,8 +57,20 @@ class IndexDataManager {
         return indexMap.get(indexName);
     }
 
+    // 현재 페이지의 다음에 빈 페이지 추가 (기존에 있던 메서드 - 특정 위치에 추가)
+    public void addPage(String indexName, int currentPageIndex) {
+        ArrayList<Page> pages = indexMap.get(indexName);
+        Page currentPage = pages.get(currentPageIndex);
+        Page newPage = new Page(currentPage); // 폰트 크기만 복사하고 내용은 빈 페이지
+        pages.add(currentPageIndex + 1, newPage);
+        saveData();
+    }
+
+    // 수정된 메서드: 빈 페이지를 맨 뒤에 추가
     public void addPage(String indexName) {
-        indexMap.get(indexName).add(new Page());
+        ArrayList<Page> pages = indexMap.get(indexName);
+        Page newPage = new Page(); // 완전히 빈 페이지 생성 (기본 폰트 크기 사용)
+        pages.add(newPage); // 맨 뒤에 추가
         saveData();
     }
 
@@ -80,6 +92,17 @@ class IndexDataManager {
 
     public void updatePageImage(String indexName, int pageIndex, String imagePath) {
         indexMap.get(indexName).get(pageIndex).imagePath = imagePath;
+        saveData();
+    }
+
+    public void updatePageFontSize(String indexName, int pageIndex, int fontSize) {
+        indexMap.get(indexName).get(pageIndex).fontSize = fontSize;
+        saveData();
+    }
+
+    public void updatePageHighlights(String indexName, int pageIndex,
+                                     java.util.List<TextHighlighter.HighlightInfo> highlights) {
+        indexMap.get(indexName).get(pageIndex).highlights = new ArrayList<>(highlights);
         saveData();
     }
 }

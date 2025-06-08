@@ -13,6 +13,7 @@ public class IndexStudyApp implements LoginPanel.LoginListener,
 
     private UserManager userManager;
     private IndexDataManager dataManager;
+    private String currentUserId; // 현재 로그인된 사용자 ID 저장
 
     public IndexStudyApp() {
         userManager = new UserManager();
@@ -39,13 +40,15 @@ public class IndexStudyApp implements LoginPanel.LoginListener,
     }
 
     @Override
-    public void onLoginSuccess() {
+    public void onLoginSuccess(String userId) {
+        this.currentUserId = userId; // 현재 사용자 ID 저장
+        System.out.println("로그인된 사용자: " + userId); // 디버깅용
         showIndexSelectionUI();
     }
 
     @Override
     public void onSignupSuccess() {
-
+        // 회원가입 성공 후 필요한 처리가 있다면 여기에 추가
     }
 
     private void showIndexSelectionUI() {
@@ -53,6 +56,9 @@ public class IndexStudyApp implements LoginPanel.LoginListener,
             indexSelectionPanel = new IndexSelectionPanel(dataManager, this);
             cardPanel.add(indexSelectionPanel, "index_selection");
         }
+        // 사용자별 데이터 로드가 필요하다면 여기서 처리
+        // indexSelectionPanel.loadUserData(currentUserId);
+
         cardLayout.show(cardPanel, "index_selection");
     }
 
@@ -68,6 +74,29 @@ public class IndexStudyApp implements LoginPanel.LoginListener,
         cardLayout.show(cardPanel, "index_selection");
         cardPanel.remove(indexContentPanel);
         indexContentPanel = null;
+    }
+
+    // 로그아웃 기능 (추가적으로 구현할 수 있음)
+    public void logout() {
+        userManager.logout();
+        currentUserId = null;
+        loginPanel.resetForm();
+        cardLayout.show(cardPanel, "login");
+
+        // 기존 패널들 정리
+        if (indexSelectionPanel != null) {
+            cardPanel.remove(indexSelectionPanel);
+            indexSelectionPanel = null;
+        }
+        if (indexContentPanel != null) {
+            cardPanel.remove(indexContentPanel);
+            indexContentPanel = null;
+        }
+    }
+
+    // 현재 사용자 ID 반환 (필요시 사용)
+    public String getCurrentUserId() {
+        return currentUserId;
     }
 
     public static void main(String[] args) {

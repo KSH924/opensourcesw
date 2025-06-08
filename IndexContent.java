@@ -1,36 +1,40 @@
 import javax.swing.*;
-import javax.swing.border.EmptyBorder;
 import java.awt.*;
-import java.awt.event.*;
-import java.awt.geom.RoundRectangle2D;
-import java.io.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.image.BufferedImage;
+import java.io.File;
 import java.util.ArrayList;
+import javax.imageio.ImageIO;
 
 class IndexContentPanel extends JPanel {
+    private IndexDataManager dataManager;
+    private String indexName;
+    private IndexContentListener listener;
+    private ArrayList<Page> pages;
+    private int currentPageIndex = 0;
+
+    // UI Components
     private JTextArea textArea;
     private JLabel imageLabel;
     private JComboBox<String> pageSelector;
-    private JButton imageButton;
-    private JButton nextPage;
-    private JButton prevPage;
-    private JButton addPage;
-    private JButton deletePage;
-    private JButton backButton;
-    private JButton hideButton;
+    private TextHighlighter textHighlighter;
+    private FontSizeController fontSizeController;
 
-    private IndexDataManager dataManager;
-    private String currentIndex;
-    private int currentPage = 0;
-    private boolean hidden = false;
-    private IndexContentListener listener;
+    // Buttons
+    private JButton prevPageBtn;
+    private JButton nextPageBtn;
+    private JButton addPageBtn;
+    private JButton deletePageBtn;
+    private JButton addImageBtn;
+    private JButton backBtn;
+    private JButton saveAsImageBtn;
+    private JButton clearHighlightsBtn;
 
-    // 색상 정의
-    private static final Color BABY_PINK = new Color(255, 218, 224);
-    private static final Color LIGHT_PINK = new Color(255, 240, 245);
-    private static final Color DARK_PINK = new Color(255, 192, 203);
-    private static final Color BROWN = new Color(139, 117, 98);
-    private static final Color LIGHT_BROWN = new Color(160, 140, 120);
-    private static final Color CREAM = new Color(255, 253, 250);
+    // Highlight buttons
+    private JButton highlightRedBtn;
+    private JButton highlightYellowBtn;
+    private JButton highlightBlueBtn;
 
     public interface IndexContentListener {
         void onBackToIndexSelection();
@@ -38,380 +42,378 @@ class IndexContentPanel extends JPanel {
 
     public IndexContentPanel(IndexDataManager dataManager, String indexName, IndexContentListener listener) {
         this.dataManager = dataManager;
-        this.currentIndex = indexName;
+        this.indexName = indexName;
         this.listener = listener;
+        this.pages = dataManager.getPages(indexName);
 
-        setLayout(new BorderLayout());
-        setBackground(LIGHT_PINK);
-        setBorder(new EmptyBorder(20, 20, 20, 20));
-
-        initComponents();
-        setupListeners();
-
-        // 페이지가 없으면 하나 추가
-        ArrayList<Page> pages = dataManager.getPages(currentIndex);
-        if (pages.isEmpty()) {
-            dataManager.addPage(currentIndex);
+        if (pages == null || pages.isEmpty()) {
+            pages = new ArrayList<>();
+            pages.add(new Page());
+            dataManager.getIndexMap().put(indexName, pages);
+            dataManager.saveData();
         }
 
-        updatePageSelector();
-        loadPage();
+        initComponents();
+        setupLayout();
+        setupListeners();
+        loadCurrentPage();
     }
 
     private void initComponents() {
+        setLayout(new BorderLayout());
+        setBackground(new Color(245, 245, 245));
+
         // 텍스트 영역
-        textArea = new JTextArea(10, 40);
+        textArea = new JTextArea(15, 40);
         textArea.setLineWrap(true);
         textArea.setWrapStyleWord(true);
         textArea.setFont(new Font("맑은 고딕", Font.PLAIN, 14));
-        textArea.setBackground(CREAM);
-        textArea.setForeground(BROWN);
-        textArea.setBorder(new EmptyBorder(15, 15, 15, 15));
+        textArea.setBackground(Color.WHITE);
+        textArea.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        JScrollPane textScroll = new JScrollPane(textArea);
-        textScroll.setPreferredSize(new Dimension(450, 220));
-        textScroll.setBorder(BorderFactory.createEmptyBorder());
-        textScroll.getViewport().setBackground(CREAM);
+        // 텍스트 하이라이터 초기화
+        textHighlighter = new TextHighlighter(textArea);
 
-        // 모서리
-        JPanel textWrapper = createRoundedPanel(CREAM);
-        textWrapper.setLayout(new BorderLayout());
-        textWrapper.add(textScroll);
-        textWrapper.setBorder(BorderFactory.createCompoundBorder(
-                createShadowBorder(),
-                new EmptyBorder(5, 5, 5, 5)
-        ));
+        // 폰트 크기 컨트롤러 초기화
+        fontSizeController = new FontSizeController(textArea);
 
-        // 라벨
-        imageLabel = new JLabel("이미지 추가");
+        // 이미지 라벨
+        imageLabel = new JLabel();
         imageLabel.setHorizontalAlignment(JLabel.CENTER);
         imageLabel.setVerticalAlignment(JLabel.CENTER);
-        imageLabel.setPreferredSize(new Dimension(450, 300));
-        imageLabel.setFont(new Font("맑은 고딕", Font.PLAIN, 16));
-        imageLabel.setForeground(Color.BLACK);
-
-        JPanel imageWrapper = createRoundedPanel(CREAM);
-        imageWrapper.setLayout(new BorderLayout());
-        imageWrapper.add(imageLabel);
-        imageWrapper.setBorder(BorderFactory.createCompoundBorder(
-                createShadowBorder(),
-                new EmptyBorder(10, 10, 10, 10)
-        ));
-
-        // 중앙 패널
-        JPanel centerPanel = new JPanel();
-        centerPanel.setLayout(new BoxLayout(centerPanel, BoxLayout.Y_AXIS));
-        centerPanel.setBackground(LIGHT_PINK);
-        centerPanel.add(textWrapper);
-        centerPanel.add(Box.createVerticalStrut(15));
-        centerPanel.add(imageWrapper);
+        imageLabel.setPreferredSize(new Dimension(400, 250));
+        imageLabel.setBorder(BorderFactory.createLineBorder(Color.GRAY, 1));
+        imageLabel.setBackground(Color.WHITE);
+        imageLabel.setOpaque(true);
 
         // 페이지 선택기
         pageSelector = new JComboBox<>();
-        styleComboBox(pageSelector);
+        updatePageSelector();
 
-        // 버튼
-        imageButton = createStyledButton("이미지", BABY_PINK);
-        nextPage = createStyledButton("다음", BABY_PINK);
-        prevPage = createStyledButton("이전", BABY_PINK);
-        addPage = createStyledButton("페이지 추가", LIGHT_BROWN);
-        deletePage = createStyledButton("삭제", new Color(255, 160, 160));
-        backButton = createStyledButton("목록", BROWN);
-        hideButton = createStyledButton("가리기", DARK_PINK);
-
-        // 버튼 패널
-        JPanel buttonPanel = new JPanel(new GridBagLayout());
-        buttonPanel.setBackground(LIGHT_PINK);
-        buttonPanel.setBorder(new EmptyBorder(15, 0, 0, 0));
-
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(5, 5, 5, 5);
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-
-        // 첫 번째 줄
-        gbc.gridx = 0; gbc.gridy = 0; gbc.weightx = 1.0;
-        buttonPanel.add(prevPage, gbc);
-        gbc.gridx = 1;
-        buttonPanel.add(pageSelector, gbc);
-        gbc.gridx = 2;
-        buttonPanel.add(nextPage, gbc);
-
-        // 두 번째 줄
-        gbc.gridx = 0; gbc.gridy = 1;
-        buttonPanel.add(addPage, gbc);
-        gbc.gridx = 1;
-        buttonPanel.add(deletePage, gbc);
-        gbc.gridx = 2;
-        buttonPanel.add(imageButton, gbc);
-
-        // 세 번째 줄
-        gbc.gridx = 0; gbc.gridy = 2;
-        buttonPanel.add(hideButton, gbc);
-        gbc.gridx = 2;
-        buttonPanel.add(backButton, gbc);
-
-        add(centerPanel, BorderLayout.CENTER);
-        add(buttonPanel, BorderLayout.SOUTH);
+        // 버튼들 초기화
+        initButtons();
     }
 
-    private JPanel createRoundedPanel(Color bgColor) {
-        return new JPanel() {
-            @Override
-            protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(bgColor);
-                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 20, 20);
-                g2.dispose();
-            }
-        };
+    private void initButtons() {
+        // 네비게이션 버튼
+        prevPageBtn = createStyledButton("이전 페이지");
+        nextPageBtn = createStyledButton("다음 페이지");
+        addPageBtn = createStyledButton("페이지 추가");
+        deletePageBtn = createStyledButton("페이지 삭제");
+        addImageBtn = createStyledButton("이미지 추가");
+        backBtn = createStyledButton("뒤로가기");
+        saveAsImageBtn = createStyledButton("이미지로 저장");
+        clearHighlightsBtn = createStyledButton("하이라이트 지우기");
+
+        // 하이라이트 버튼들
+        highlightRedBtn = createHighlightButton("빨강", TextHighlighter.PASTEL_RED);
+        highlightYellowBtn = createHighlightButton("노랑", TextHighlighter.PASTEL_YELLOW);
+        highlightBlueBtn = createHighlightButton("파랑", TextHighlighter.PASTEL_BLUE);
     }
 
-    private javax.swing.border.Border createShadowBorder() {
-        return new javax.swing.border.AbstractBorder() {
-            @Override
-            public void paintBorder(Component c, Graphics g, int x, int y, int width, int height) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-
-                // 그림자 효과
-                g2.setColor(new Color(0, 0, 0, 20));
-                for (int i = 0; i < 4; i++) {
-                    g2.drawRoundRect(x + i, y + i, width - 2*i - 1, height - 2*i - 1, 20, 20);
-                }
-                g2.dispose();
-            }
-
-            @Override
-            public Insets getBorderInsets(Component c) {
-                return new Insets(4, 4, 4, 4);
-            }
-        };
-    }
-
-    private JButton createStyledButton(String text, Color bgColor) {
-        JButton button = new JButton(text) {
-            @Override
-            protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-
-                // 그라데이션 배경
-                GradientPaint gradient = new GradientPaint(
-                        0, 0, bgColor,
-                        0, getHeight(), darken(bgColor, 0.9f)
-                );
-                g2.setPaint(gradient);
-                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 15, 15);
-
-                // 텍스트
-                g2.setColor(getForeground());
-                FontMetrics fm = g2.getFontMetrics();
-                int textX = (getWidth() - fm.stringWidth(getText())) / 2;
-                int textY = (getHeight() + fm.getAscent()) / 2 - 2;
-                g2.drawString(getText(), textX, textY);
-
-                g2.dispose();
-            }
-        };
-
-        button.setFont(new Font("맑은 고딕", Font.BOLD, 12));
+    private JButton createStyledButton(String text) {
+        JButton button = new JButton(text);
+        button.setFont(new Font("맑은 고딕", Font.BOLD, 11));
+        button.setBackground(new Color(255, 182, 193));
         button.setForeground(Color.BLACK);
-        button.setBackground(bgColor);
-        button.setBorder(new EmptyBorder(8, 15, 8, 15));
+        button.setBorder(BorderFactory.createRaisedBevelBorder());
         button.setFocusPainted(false);
-        button.setContentAreaFilled(false);
-        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
-
-        // 호버 효과
-        button.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseEntered(MouseEvent e) {
-                button.setBackground(brighten(bgColor, 1.1f));
-            }
-
-            @Override
-            public void mouseExited(MouseEvent e) {
-                button.setBackground(bgColor);
-            }
-        });
-
         return button;
     }
 
-    private void styleComboBox(JComboBox<String> comboBox) {
-        comboBox.setFont(new Font("맑은 고딕", Font.PLAIN, 12));
-        comboBox.setBackground(CREAM);
-        comboBox.setForeground(BROWN);
-        comboBox.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(BABY_PINK, 2),
-                new EmptyBorder(5, 10, 5, 10)
-        ));
-
-        // 화살표 색상
-        comboBox.setUI(new javax.swing.plaf.basic.BasicComboBoxUI() {
-            @Override
-            protected JButton createArrowButton() {
-                JButton button = new JButton("▼");
-                button.setFont(new Font("맑은 고딕", Font.PLAIN, 10));
-                button.setBackground(BABY_PINK);
-                button.setForeground(BROWN);
-                button.setBorder(BorderFactory.createEmptyBorder());
-                return button;
-            }
-        });
+    private JButton createHighlightButton(String text, Color color) {
+        JButton button = createStyledButton(text);
+        button.setBackground(color);
+        return button;
     }
 
-    private Color brighten(Color color, float factor) {
-        int r = Math.min(255, (int)(color.getRed() * factor));
-        int g = Math.min(255, (int)(color.getGreen() * factor));
-        int b = Math.min(255, (int)(color.getBlue() * factor));
-        return new Color(r, g, b);
-    }
+    // setupLayout() 메서드의 하단 패널 부분을 수정
+    private void setupLayout() {
+        // 상단 패널 - 폰트 크기 조절과 하이라이트 버튼들
+        JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        topPanel.setBackground(new Color(245, 245, 245));
 
-    private Color darken(Color color, float factor) {
-        int r = (int)(color.getRed() * factor);
-        int g = (int)(color.getGreen() * factor);
-        int b = (int)(color.getBlue() * factor);
-        return new Color(r, g, b);
+        topPanel.add(fontSizeController.getFontSizePanel());
+        topPanel.add(Box.createHorizontalStrut(20));
+        topPanel.add(new JLabel("하이라이트:"));
+        topPanel.add(highlightRedBtn);
+        topPanel.add(highlightYellowBtn);
+        topPanel.add(highlightBlueBtn);
+        topPanel.add(clearHighlightsBtn);
+
+        // 중앙 패널 - 텍스트와 이미지
+        JPanel centerPanel = new JPanel();
+        centerPanel.setLayout(new BoxLayout(centerPanel, BoxLayout.Y_AXIS));
+        centerPanel.setBackground(new Color(245, 245, 245));
+        centerPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+        JScrollPane textScroll = new JScrollPane(textArea);
+        textScroll.setPreferredSize(new Dimension(500, 300));
+        textScroll.setBorder(BorderFactory.createTitledBorder("텍스트"));
+
+        JPanel imagePanel = new JPanel(new BorderLayout());
+        imagePanel.setBorder(BorderFactory.createTitledBorder("이미지"));
+        imagePanel.add(imageLabel, BorderLayout.CENTER);
+
+        centerPanel.add(textScroll);
+        centerPanel.add(Box.createVerticalStrut(10));
+        centerPanel.add(imagePanel);
+
+        // 하단 패널 - 컨트롤 버튼들 (2줄로 분리)
+        JPanel bottomPanel = new JPanel();
+        bottomPanel.setLayout(new BoxLayout(bottomPanel, BoxLayout.Y_AXIS));
+        bottomPanel.setBackground(new Color(245, 245, 245));
+
+        // 첫 번째 줄: 페이지 관련 버튼들
+        JPanel pageControlPanel = new JPanel(new FlowLayout());
+        pageControlPanel.setBackground(new Color(245, 245, 245));
+        pageControlPanel.add(new JLabel("페이지:"));
+        pageControlPanel.add(pageSelector);
+        pageControlPanel.add(prevPageBtn);
+        pageControlPanel.add(nextPageBtn);
+        pageControlPanel.add(addPageBtn);
+        pageControlPanel.add(deletePageBtn);
+
+        // 두 번째 줄: 기타 기능 버튼들
+        JPanel actionPanel = new JPanel(new FlowLayout());
+        actionPanel.setBackground(new Color(245, 245, 245));
+        actionPanel.add(addImageBtn);
+        actionPanel.add(saveAsImageBtn);
+        actionPanel.add(backBtn); // 뒤로가기 버튼을 별도 줄에 배치
+
+        bottomPanel.add(pageControlPanel);
+        bottomPanel.add(actionPanel);
+
+        add(topPanel, BorderLayout.NORTH);
+        add(centerPanel, BorderLayout.CENTER);
+        add(bottomPanel, BorderLayout.SOUTH);
     }
 
     private void setupListeners() {
+        // 페이지 선택
         pageSelector.addActionListener(e -> {
-            int selected = pageSelector.getSelectedIndex();
-            if (selected >= 0 && selected < dataManager.getPages(currentIndex).size()) {
+            int selectedIndex = pageSelector.getSelectedIndex();
+            if (selectedIndex >= 0 && selectedIndex != currentPageIndex) {
                 saveCurrentPage();
-                currentPage = selected;
-                loadPage();
+                currentPageIndex = selectedIndex;
+                loadCurrentPage();
             }
         });
 
-        imageButton.addActionListener(e -> {
-            JFileChooser fileChooser = new JFileChooser();
-            fileChooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
-            fileChooser.setFileFilter(new javax.swing.filechooser.FileFilter() {
-                @Override
-                public boolean accept(File f) {
-                    if (f.isDirectory()) return true;
-                    String name = f.getName().toLowerCase();
-                    return name.endsWith(".jpg") || name.endsWith(".jpeg") ||
-                            name.endsWith(".png") || name.endsWith(".gif") || name.endsWith(".bmp");
-                }
+        // 네비게이션
+        prevPageBtn.addActionListener(e -> {
+            if (currentPageIndex > 0) {
+                saveCurrentPage();
+                currentPageIndex--;
+                pageSelector.setSelectedIndex(currentPageIndex);
+                loadCurrentPage();
+            }
+        });
 
-                @Override
-                public String getDescription() {
-                    return "이미지 파일 (*.jpg, *.png, *.gif, *.bmp)";
+        nextPageBtn.addActionListener(e -> {
+            if (currentPageIndex < pages.size() - 1) {
+                saveCurrentPage();
+                currentPageIndex++;
+                pageSelector.setSelectedIndex(currentPageIndex);
+                loadCurrentPage();
+            }
+        });
+
+        // 페이지 관리 - 수정된 부분: 빈 페이지를 맨 뒤에 추가
+        addPageBtn.addActionListener(e -> {
+            saveCurrentPage();
+            // 빈 페이지를 맨 뒤에 추가
+            dataManager.addPage(indexName); // 기존 메서드 사용 (맨 뒤에 추가)
+            pages = dataManager.getPages(indexName); // 업데이트된 페이지 목록 가져오기
+            currentPageIndex = pages.size() - 1; // 새로 추가된 페이지(맨 마지막)로 이동
+            updatePageSelector();
+            loadCurrentPage();
+        });
+
+        deletePageBtn.addActionListener(e -> {
+            if (pages.size() > 1) {
+                boolean deleted = dataManager.deletePage(indexName, currentPageIndex);
+                if (deleted) {
+                    pages = dataManager.getPages(indexName);
+                    currentPageIndex = Math.max(0, currentPageIndex - 1);
+                    updatePageSelector();
+                    loadCurrentPage();
                 }
-            });
+            } else {
+                JOptionPane.showMessageDialog(this, "최소 한 페이지는 있어야 합니다.");
+            }
+        });
+
+        // 이미지 추가
+        addImageBtn.addActionListener(e -> {
+            JFileChooser fileChooser = new JFileChooser();
+            fileChooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(
+                    "이미지 파일", "jpg", "jpeg", "png", "gif", "bmp"));
 
             int result = fileChooser.showOpenDialog(this);
             if (result == JFileChooser.APPROVE_OPTION) {
                 File file = fileChooser.getSelectedFile();
-                try {
-                    ImageIcon icon = new ImageIcon(file.getAbsolutePath());
-                    Image scaled = icon.getImage().getScaledInstance(400, 280, Image.SCALE_SMOOTH);
-                    imageLabel.setIcon(new ImageIcon(scaled));
-                    imageLabel.setText("");
-                    dataManager.updatePageImage(currentIndex, currentPage, file.getAbsolutePath());
-                } catch (Exception ex) {
-                    JOptionPane.showMessageDialog(this, "이미지를 불러올 수 없습니다.ㅇㅁㅇ;;", "오류", JOptionPane.ERROR_MESSAGE);
-                }
+                String imagePath = file.getAbsolutePath();
+                dataManager.updatePageImage(indexName, currentPageIndex, imagePath);
+                loadImageFromPath(imagePath);
             }
         });
 
-        addPage.addActionListener(e -> {
-            dataManager.addPage(currentIndex);
-            currentPage = dataManager.getPages(currentIndex).size() - 1;
-            updatePageSelector();
-            loadPage();
+        // 하이라이트 버튼들
+        highlightRedBtn.addActionListener(e -> {
+            textHighlighter.setHighlightColor(TextHighlighter.PASTEL_RED);
+            textHighlighter.setHighlightMode(true);
         });
 
-        deletePage.addActionListener(e -> {
-            if (dataManager.getPages(currentIndex).size() <= 1) {
-                JOptionPane.showMessageDialog(this, "최소 한 페이지는 있어야 합니다.（〜^∇^)〜;",
-                        "알림", JOptionPane.INFORMATION_MESSAGE);
-                return;
-            }
-
-            int result = JOptionPane.showConfirmDialog(this,
-                    "정말 이 페이지를 삭제하시겠습니까?(づ-̩̩̩-̩̩̩_-̩̩̩-̩̩̩)づ ",
-                    "페이지 삭제", JOptionPane.YES_NO_OPTION);
-
-            if (result == JOptionPane.YES_OPTION) {
-                if (dataManager.deletePage(currentIndex, currentPage)) {
-                    currentPage = Math.max(0, currentPage - 1);
-                    updatePageSelector();
-                    loadPage();
-                }
-            }
+        highlightYellowBtn.addActionListener(e -> {
+            textHighlighter.setHighlightColor(TextHighlighter.PASTEL_YELLOW);
+            textHighlighter.setHighlightMode(true);
         });
 
-        nextPage.addActionListener(e -> {
-            if (currentPage < dataManager.getPages(currentIndex).size() - 1) {
-                saveCurrentPage();
-                currentPage++;
-                pageSelector.setSelectedIndex(currentPage);
-                loadPage();
-            }
+        highlightBlueBtn.addActionListener(e -> {
+            textHighlighter.setHighlightColor(TextHighlighter.PASTEL_BLUE);
+            textHighlighter.setHighlightMode(true);
         });
 
-        prevPage.addActionListener(e -> {
-            if (currentPage > 0) {
-                saveCurrentPage();
-                currentPage--;
-                pageSelector.setSelectedIndex(currentPage);
-                loadPage();
-            }
-        });
-
-        hideButton.addActionListener(e -> {
-            hidden = !hidden;
-            if (hidden) {
-                textArea.setForeground(textArea.getBackground());
-                hideButton.setText(" 보이기");
-            } else {
-                textArea.setForeground(BROWN);
-                hideButton.setText("가리기");
-            }
-        });
-
-        backButton.addActionListener(e -> {
+        clearHighlightsBtn.addActionListener(e -> {
+            textHighlighter.clearAllHighlights();
             saveCurrentPage();
+        });
+
+        // 이미지로 저장
+        saveAsImageBtn.addActionListener(e -> savePageAsImage());
+
+        // 뒤로가기 - 수정된 부분: 현재 페이지 저장 후 돌아가기
+        backBtn.addActionListener(e -> {
+            saveCurrentPage(); // 현재 페이지 저장
+            dataManager.saveData(); // 데이터 저장
             listener.onBackToIndexSelection();
+        });
+
+        // 텍스트 변경 감지 (하이라이트 저장용)
+        textArea.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            public void insertUpdate(javax.swing.event.DocumentEvent e) { saveHighlights(); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e) { saveHighlights(); }
+            public void changedUpdate(javax.swing.event.DocumentEvent e) { saveHighlights(); }
+        });
+    }
+
+    private void saveHighlights() {
+        SwingUtilities.invokeLater(() -> {
+            if (currentPageIndex < pages.size()) {
+                dataManager.updatePageHighlights(indexName, currentPageIndex, textHighlighter.getHighlights());
+            }
         });
     }
 
     private void updatePageSelector() {
         pageSelector.removeAllItems();
-        ArrayList<Page> pages = dataManager.getPages(currentIndex);
         for (int i = 0; i < pages.size(); i++) {
             pageSelector.addItem("페이지 " + (i + 1));
         }
-        pageSelector.setSelectedIndex(currentPage);
+        pageSelector.setSelectedIndex(currentPageIndex);
     }
 
-    private void loadPage() {
-        Page page = dataManager.getPages(currentIndex).get(currentPage);
-        textArea.setText(page.text);
-        if (page.imagePath != null && !page.imagePath.isEmpty()) {
-            try {
-                ImageIcon icon = new ImageIcon(page.imagePath);
-                Image scaled = icon.getImage().getScaledInstance(400, 280, Image.SCALE_SMOOTH);
-                imageLabel.setIcon(new ImageIcon(scaled));
-                imageLabel.setText("");
-            } catch (Exception e) {
+    private void loadCurrentPage() {
+        if (currentPageIndex < pages.size()) {
+            Page page = pages.get(currentPageIndex);
+
+            // 텍스트 로드
+            textArea.setText(page.text);
+
+            // 폰트 크기 설정
+            fontSizeController.setFontSize(page.fontSize);
+
+            // 하이라이트 로드
+            textHighlighter.setHighlights(page.highlights);
+
+            // 이미지 로드
+            if (page.imagePath != null && !page.imagePath.isEmpty()) {
+                loadImageFromPath(page.imagePath);
+            } else {
                 imageLabel.setIcon(null);
-                imageLabel.setText("이미지를 불러올 수 없습니다ㅠㅅㅠ");
+                imageLabel.setText("이미지가 없습니다.");
             }
-        } else {
-            imageLabel.setIcon(null);
-            imageLabel.setText("이미지 추가!(-ω- )");
         }
     }
 
     private void saveCurrentPage() {
-        if (currentIndex != null && !currentIndex.isEmpty()) {
-            dataManager.updatePageText(currentIndex, currentPage, textArea.getText());
+        if (currentPageIndex < pages.size()) {
+            // 텍스트 저장
+            dataManager.updatePageText(indexName, currentPageIndex, textArea.getText());
+
+            // 폰트 크기 저장
+            dataManager.updatePageFontSize(indexName, currentPageIndex, fontSizeController.getCurrentFontSize());
+
+            // 하이라이트 저장
+            dataManager.updatePageHighlights(indexName, currentPageIndex, textHighlighter.getHighlights());
+        }
+    }
+
+    private void loadImageFromPath(String imagePath) {
+        try {
+            ImageIcon icon = new ImageIcon(imagePath);
+            Image image = icon.getImage();
+            Image scaledImage = image.getScaledInstance(400, 250, Image.SCALE_SMOOTH);
+            imageLabel.setIcon(new ImageIcon(scaledImage));
+            imageLabel.setText("");
+        } catch (Exception e) {
+            imageLabel.setIcon(null);
+            imageLabel.setText("이미지를 불러올 수 없습니다.");
+        }
+    }
+
+    private void savePageAsImage() {
+        try {
+            // 현재 페이지 컨텐츠를 이미지로 캡처
+            BufferedImage image = new BufferedImage(500, 600, BufferedImage.TYPE_INT_RGB);
+            Graphics2D g2d = image.createGraphics();
+
+            // 배경을 흰색으로 설정
+            g2d.setColor(Color.WHITE);
+            g2d.fillRect(0, 0, 500, 600);
+
+            // 텍스트 영역 그리기
+            g2d.setColor(Color.BLACK);
+            g2d.setFont(new Font("맑은 고딕", Font.PLAIN, fontSizeController.getCurrentFontSize()));
+
+            String text = textArea.getText();
+            String[] lines = text.split("\n");
+            int y = 30;
+            int lineHeight = fontSizeController.getCurrentFontSize() + 5;
+
+            for (String line : lines) {
+                if (y > 280) break; // 텍스트 영역 제한
+                g2d.drawString(line, 10, y);
+                y += lineHeight;
+            }
+
+            // 이미지가 있다면 추가
+            if (imageLabel.getIcon() != null) {
+                ImageIcon icon = (ImageIcon) imageLabel.getIcon();
+                g2d.drawImage(icon.getImage(), 50, 300, 400, 250, null);
+            }
+
+            g2d.dispose();
+
+            // 파일 저장 다이얼로그
+            JFileChooser fileChooser = new JFileChooser();
+            fileChooser.setSelectedFile(new File(indexName + "_page" + (currentPageIndex + 1) + ".png"));
+            fileChooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("PNG 이미지", "png"));
+
+            int result = fileChooser.showSaveDialog(this);
+            if (result == JFileChooser.APPROVE_OPTION) {
+                File file = fileChooser.getSelectedFile();
+                if (!file.getName().toLowerCase().endsWith(".png")) {
+                    file = new File(file.getAbsolutePath() + ".png");
+                }
+                ImageIO.write(image, "png", file);
+                JOptionPane.showMessageDialog(this, "이미지가 저장되었습니다: " + file.getAbsolutePath());
+            }
+
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(this, "이미지 저장 중 오류가 발생했습니다: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 }

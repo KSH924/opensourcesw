@@ -20,7 +20,7 @@ class LoginPanel extends JPanel {
     private static final Color BORDER_COLOR = new Color(220, 220, 220);
 
     public interface LoginListener {
-        void onLoginSuccess();
+        void onLoginSuccess(String userId); // 사용자 ID 전달
         void onSignupSuccess();
     }
 
@@ -130,6 +130,7 @@ class LoginPanel extends JPanel {
         ));
         return field;
     }
+
     private JButton createStyledButton(String text, boolean isPrimary) {
         JButton button = new JButton(text);
         button.setFont(new Font("맑은 고딕", Font.BOLD, 16));
@@ -166,7 +167,9 @@ class LoginPanel extends JPanel {
             }
 
             if (userManager.authenticate(id, pw)) {
-                loginListener.onLoginSuccess();
+                showStyledMessage(id + "님, 환영합니다! ٩(◕‿◕)۶", "로그인 성공");
+                clearFields(); // 로그인 후 필드 초기화
+                loginListener.onLoginSuccess(id); // 사용자 ID 전달
             } else {
                 showStyledMessage("아이디 또는 비밀번호가 틀렸습니다.（￣□￣；）", "로그인 실패");
             }
@@ -196,5 +199,17 @@ class LoginPanel extends JPanel {
 
     private void showStyledMessage(String message, String title) {
         JOptionPane.showMessageDialog(this, message, title, JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    // 로그인 후 입력 필드 초기화
+    private void clearFields() {
+        idField.setText("");
+        passwordField.setText("");
+    }
+
+    // 로그인 화면으로 돌아올 때 필드 초기화
+    public void resetForm() {
+        clearFields();
+        idField.requestFocus();
     }
 }
